@@ -5,33 +5,26 @@ import os
 from dotenv import load_dotenv
 import openai
 
-
 load_dotenv()
 
-
 openai.api_key = os.getenv("OPENAI_API_KEY")
-
 
 urls = {
     "CNN": "https://edition.cnn.com/",
     "BBC": "https://www.bbc.com/"
 }
 
-
 HEADERS = { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"}
 
-
 def get_articles(url, headers):
-    print("Récupération des titres, urls ...")
+    print("Accessing websites ...")
     response = re.get(url, headers=headers)
     response.encoding = response.apparent_encoding
     articles = []
 
-
     if response.status_code == 200:
         html = response.text
         soup = BeautifulSoup(html, 'html5lib')
-
 
         if 'bbc' in url:
             div_titreBBC = soup.find('div', class_="sc-5b94fa74-0 sc-e70150c3-3 jbFGkZ kdbokE")
@@ -54,10 +47,7 @@ def get_articles(url, headers):
                     articles.append((title, link, content))
     else:
         print('ERREUR : ', response.status_code)
-   
-    print("Titres et urls récupérés !")
     return articles
-
 
 def get_article_content(article_url, source, headers):
     try:
@@ -65,11 +55,9 @@ def get_article_content(article_url, source, headers):
         response.encoding = response.apparent_encoding
         content = ""
 
-
         if response.status_code == 200:
             html = response.text
             soup = BeautifulSoup(html, 'html5lib')
-
 
             if source == 'bbc':
                 div_content = soup.find('div', class_="app")
@@ -85,17 +73,14 @@ def get_article_content(article_url, source, headers):
             print(f'ERREUR : {response.status_code} lors de la récupération du contenu de l\'article {article_url}')
             content = f"Error {response.status_code}: Unable to retrieve article content."
 
-
     except re.RequestException as e:
         print(f'Erreur lors de la tentative d\'accès à l\'article {article_url} : {e}')
         content = ""
 
-
     return content
 
-
 def summarize_all_articles(contents):
-    print("Création de la requete ChatGPT pour le résumé global...")
+    print("Summarizing all articles...")
     combined_content = "\n\n".join(contents)
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
@@ -108,17 +93,15 @@ def summarize_all_articles(contents):
     summary = response.choices[0].message['content'].strip()
     tokens_used = response['usage']['total_tokens']
 
+    with open("summary.txt", "w") as file:
+        file.write(summary)
 
     print("Requête ChatGPT terminée ! Token utilisés : ", tokens_used)
     return summary, tokens_used
 
-
-
-
 all_articles = []
 all_contents = []
 token_usage = []
-
 
 for source, url in urls.items():
     articles = get_articles(url, HEADERS)
@@ -126,30 +109,18 @@ for source, url in urls.items():
         all_articles.append((source, title, link, content))
         all_contents.append(content)
 
-
 df = pd.DataFrame(all_articles, columns=['Source', 'Title', 'URL', 'Content'])
 
-
-# Créer un résumé global pour tous les articles
 summary, tokens_used = summarize_all_articles(all_contents)
 print("\nRésumé global de l'actualité :\n", summary)
 
-
-# Ajouter le résumé global et les tokens utilisés au DataFrame
 df_summary = pd.DataFrame([['ALL', 'Résumé global', '', summary]], columns=['Source', 'Title', 'URL', 'Content'])
 df = pd.concat([df, df_summary], ignore_index=True)
 df['Tokens Used'] = [tokens_used if idx == len(df) - 1 else '' for idx in range(len(df))]
-
-
-# Exporter le DataFrame dans un fichier .csv
 df.to_csv("news_summary.csv", index=False)
-
-
-# Set pandas display options to show long strings completely
 pd.set_option('display.max_colwidth', None)
 
-
-print(df)
+#print("\n",df)
 
 
 
